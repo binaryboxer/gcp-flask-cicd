@@ -1,0 +1,62 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write   # REQUIRED for OIDC
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Authenticate to GCP using Workload Identity Federation (OIDC)
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # Install gcloud CLI
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      # Configure Docker to authenticate with Artifact Registry
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+
+      # Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t flask-ci-cd -f docker/Dockerfile .
+
+      # Tag Docker image
+      - name: Tag Docker image
+        run: |
+          docker tag flask-ci-cd \
+            asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo/flask-ci-cd:latest
+
+      # Push Docker image to Artifact Registry
+      - name: Push Docker image
+        run: |
+          docker push \
+            asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo/flask-ci-cd:latest
+
+      # Deploy to Cloud Run
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy flask-service \
+            --image asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo/flask-ci-cd:latest \
+            --region asia-south1 \
+            --platform managed \
+            --allow-unauthenticated
