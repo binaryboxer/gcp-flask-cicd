@@ -1,29 +1,38 @@
 # Automated CI/CD Pipeline for a 2-Tier Flask Application on GCP
 
-This project demonstrates a production-style workflow for deploying a containerized Flask application on Google Cloud Platform using Cloud Run and Artifact Registry.
+## Overview
+This project demonstrates an end-to-end CI/CD workflow for deploying a containerized Flask application on **Google Cloud Platform** using **Cloud Run**, **Artifact Registry**, and **GitHub Actions** with **Workload Identity Federation (OIDC)**.
 
-The focus is on infrastructure, deployment, and operational clarity rather than application complexity.
-
----
-
-## Architecture Overview
-
-The application follows a simple 2-tier architecture:
-
-- **Application Tier**: Flask-based REST API packaged as a Docker container
-- **Platform Tier**: Google Cloud Run for serverless container execution
-
-The container image is built locally, pushed to Artifact Registry, and deployed to Cloud Run.
+The primary focus of this project is **cloud deployment, secure CI/CD automation, and real-world troubleshooting**, rather than application complexity.
 
 ---
 
-## Tech Stack
+## Architecture
+
+**High-level architecture:**
+
+- **Application Layer**
+  - Flask-based REST API
+  - Containerized using Docker
+
+- **Platform Layer**
+  - Google Cloud Run (fully managed, serverless container runtime)
+  - Artifact Registry for container image storage
+
+- **CI/CD Layer**
+  - GitHub Actions
+  - OIDC-based authentication to GCP (no long-lived credentials)
+
+---
+
+## Technology Stack
 
 - Python (Flask)
 - Docker
 - Google Cloud Run
-- Artifact Registry
-- GCP IAM
+- Google Artifact Registry
+- GitHub Actions
+- GCP IAM & Workload Identity Federation
 - Cloud Logging
 
 ---
@@ -32,8 +41,8 @@ The container image is built locally, pushed to Artifact Registry, and deployed 
 
 | Endpoint | Description |
 |--------|------------|
+| `/` | Root endpoint |
 | `/health` | Health check endpoint |
-| `/hello` | Sample API endpoint |
 
 ---
 
@@ -45,23 +54,92 @@ source venv/bin/activate
 pip install -r app/requirements.txt
 python app/app.py
 
-## Troubleshooting & Key Learnings
 
-During the deployment process, I encountered an authentication issue while pushing Docker images to Google Artifact Registry. Despite correct IAM permissions and billing being enabled, Docker push requests consistently failed with an `Unauthenticated request` error.
+##Containerization
 
-### Root Cause
-The issue was caused by running Docker commands using `sudo`. While `sudo` allowed access to the Docker daemon, it changed the user context to `root`. As a result, Docker attempted to use credentials from `/root/.docker/config.json`, bypassing the GCP credential helper configured for the normal user.
+The application is packaged as a Docker image using a production-ready configuration.
 
-Since Artifact Registry authentication relies on the Docker credential helper configured by `gcloud`, this user context mismatch caused all push attempts to fail.
+docker build -t flask-ci-cd -f docker/Dockerfile .
+docker run -p 8080:8080 flask-ci-cd
 
-### Resolution
-- Added the user to the `docker` group to allow Docker commands to run without `sudo`
-- Applied the group membership change via logout/login
-- Re-ran Docker tag and push commands as the normal user
+CI/CD Pipeline
 
-After correcting the Linux permissions and user context, Docker was able to authenticate successfully with Artifact Registry and the image push completed as expected.
+The CI/CD pipeline is implemented using GitHub Actions and is triggered on every push to the master branch.
 
-### Key Takeaways
-- Docker authentication issues can stem from Linux permission and user context problems, not just IAM configuration
-- Running Docker with `sudo` can break credential helpers and should be avoided in CI/CD workflows
-- Proper user and group management is essential for secure and predictable container operations
+Pipeline Steps
+
+Checkout source code
+
+Authenticate to Google Cloud using OIDC (Workload Identity Federation)
+
+Build Docker image
+
+Push image to Artifact Registry
+
+Deploy the application to Cloud Run
+
+This approach avoids storing service account keys and follows cloud security best practices.
+
+Deployment
+
+The application is deployed to Google Cloud Run with:
+
+Automatic scaling
+
+HTTPS endpoint
+
+Revision-based deployments
+
+Easy rollback to previous revisions
+
+Troubleshooting & Key Learnings
+
+During development and deployment, several real-world issues were encountered and resolved:
+
+Docker Authentication
+
+Docker push failures were caused by running Docker commands with sudo, which changed the user context and bypassed the configured GCP credential helper.
+
+Resolved by adding the user to the docker group and running Docker without sudo.
+
+Linux Permissions
+
+Docker daemon communication relies on a Unix domain socket (/var/run/docker.sock).
+
+Correct user and group permissions were required for stable Docker operation.
+
+OIDC Authentication
+
+OIDC authentication failures were caused by mismatched Workload Identity provider configuration and incorrect audience values.
+
+Resolved by aligning GitHub Actions configuration with the exact provider resource name in GCP.
+
+Cloud Run Runtime
+
+Initial deployment returned errors on the root URL due to a missing / route in the Flask application.
+
+Adding an explicit root endpoint resolved the issue.
+
+Key Takeaways
+
+Docker authentication issues often stem from Linux permission and user-context problems.
+
+Running Docker with sudo can break CI/CD credential helpers.
+
+OIDC-based CI/CD requires precise alignment between GitHub, IAM bindings, and provider configuration.
+
+Cloud Run expects applications to explicitly handle the root (/) route.
+
+Future Improvements
+
+Provision infrastructure using Terraform
+
+Introduce environment separation (dev/stage/prod)
+
+Integrate Secret Manager for sensitive configuration
+
+Add monitoring and alerting
+
+Author Notes
+
+This project was built to gain hands-on experience with cloud-native deployments, CI/CD automation, and real-world debugging scenarios commonly encountered in DevOps and Cloud Engineering roles.
