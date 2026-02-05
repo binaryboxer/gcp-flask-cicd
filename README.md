@@ -62,84 +62,111 @@ The application is packaged as a Docker image using a production-ready configura
 docker build -t flask-ci-cd -f docker/Dockerfile .
 docker run -p 8080:8080 flask-ci-cd
 
-CI/CD Pipeline
+## CI/CD Pipeline
 
-The CI/CD pipeline is implemented using GitHub Actions and is triggered on every push to the master branch.
+The CI/CD pipeline is implemented using **GitHub Actions** and is triggered on every push to the `master` branch.
 
-Pipeline Steps
-
-Checkout source code
-
-Authenticate to Google Cloud using OIDC (Workload Identity Federation)
-
-Build Docker image
-
-Push image to Artifact Registry
-
-Deploy the application to Cloud Run
+### Pipeline Steps
+1. Checkout source code  
+2. Authenticate to Google Cloud using **OIDC (Workload Identity Federation)**  
+3. Build Docker image  
+4. Push image to Artifact Registry  
+5. Deploy the application to Cloud Run  
 
 This approach avoids storing service account keys and follows cloud security best practices.
 
-Deployment
+---
 
-The application is deployed to Google Cloud Run with:
+## Deployment
 
-Automatic scaling
+The application is deployed to **Google Cloud Run** with:
 
-HTTPS endpoint
+- Automatic scaling
+- HTTPS endpoint
+- Revision-based deployments
+- Easy rollback to previous revisions
 
-Revision-based deployments
+---
 
-Easy rollback to previous revisions
-
-Troubleshooting & Key Learnings
+## Troubleshooting & Key Learnings
 
 During development and deployment, several real-world issues were encountered and resolved:
 
-Docker Authentication
+### Docker Authentication
+- Docker push failures were caused by running Docker commands with `sudo`, which changed the user context and bypassed the configured GCP credential helper.
+- Resolved by adding the user to the `docker` group and running Docker without `sudo`.
 
-Docker push failures were caused by running Docker commands with sudo, which changed the user context and bypassed the configured GCP credential helper.
+### Linux Permissions
+- Docker daemon communication relies on a Unix domain socket (`/var/run/docker.sock`).
+- Correct user and group permissions were required for stable Docker operation.
 
-Resolved by adding the user to the docker group and running Docker without sudo.
+### OIDC Authentication
+- OIDC authentication failures were caused by mismatched Workload Identity provider configuration and incorrect audience values.
+- Resolved by aligning GitHub Actions configuration with the exact provider resource name in GCP.
 
-Linux Permissions
+### Cloud Run Runtime
+- Initial deployment returned errors on the root URL due to a missing `/` route in the Flask application.
+- Adding an explicit root endpoint resolved the issue.
 
-Docker daemon communication relies on a Unix domain socket (/var/run/docker.sock).
+---
 
-Correct user and group permissions were required for stable Docker operation.
+## Key Takeaways
 
-OIDC Authentication
+- Docker authentication issues often stem from Linux permission and user-context problems.
+- Running Docker with `sudo` can break CI/CD credential helpers.
+- OIDC-based CI/CD requires precise alignment between GitHub, IAM bindings, and provider configuration.
+- Cloud Run expects applications to explicitly handle the root (`/`) route.
 
-OIDC authentication failures were caused by mismatched Workload Identity provider configuration and incorrect audience values.
+---
 
-Resolved by aligning GitHub Actions configuration with the exact provider resource name in GCP.
+## Future Improvements
 
-Cloud Run Runtime
+- Provision infrastructure using Terraform
+- Introduce environment separation (dev/stage/prod)
+- Integrate Secret Manager for sensitive configuration
+- Add monitoring and alerting
 
-Initial deployment returned errors on the root URL due to a missing / route in the Flask application.
+---
 
-Adding an explicit root endpoint resolved the issue.
+## Author Notes
 
-Key Takeaways
+This project was built to gain hands-on experience with **cloud-native deployments, CI/CD automation, and real-world debugging** scenarios commonly encountered in DevOps and Cloud Engineering roles.
 
-Docker authentication issues often stem from Linux permission and user-context problems.
 
-Running Docker with sudo can break CI/CD credential helpers.
+## Architecture Diagram
 
-OIDC-based CI/CD requires precise alignment between GitHub, IAM bindings, and provider configuration.
-
-Cloud Run expects applications to explicitly handle the root (/) route.
-
-Future Improvements
-
-Provision infrastructure using Terraform
-
-Introduce environment separation (dev/stage/prod)
-
-Integrate Secret Manager for sensitive configuration
-
-Add monitoring and alerting
-
-Author Notes
-
-This project was built to gain hands-on experience with cloud-native deployments, CI/CD automation, and real-world debugging scenarios commonly encountered in DevOps and Cloud Engineering roles.
+```text
+┌──────────────┐
+│   Developer  │
+│  (Git Push)  │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────────────┐
+│   GitHub Repository  │
+│  (master branch)     │
+└──────┬───────────────┘
+       │  Push Trigger
+       ▼
+┌──────────────────────┐
+│   GitHub Actions     │
+│   CI/CD Pipeline     │
+│                      │
+│  - OIDC Auth to GCP  │
+│  - Docker Build      │
+│  - Docker Push       │
+└──────┬───────────────┘
+       │
+       ▼
+┌──────────────────────────────┐
+│   Artifact Registry (GCP)    │
+│   Container Image Storage    │
+└──────┬───────────────────────┘
+       │
+       ▼
+┌──────────────────────────────┐
+│       Cloud Run Service      │
+│  - Serverless Container App  │
+│  - Auto Scaling              │
+│  - HTTPS Endpoint            │
+└──────────────────────────────┘
