@@ -7,6 +7,19 @@ The primary focus of this project is **cloud deployment, secure CI/CD automation
 
 ---
 
+## 🔗 Live Demo & Resources
+
+- **Cloud Run Application URL:**  
+  https://flask-service-153254339682.asia-south1.run.app
+  https://flask-service-153254339682.asia-south1.run.app/health
+
+- **GitHub Repository:**  
+  https://github.com/binaryboxer/gcp-flask-cicd
+
+- **CI/CD Workflow:**  
+  GitHub Actions pipeline triggered on push to the `master` branch
+
+
 ## Architecture
 
 **High-level architecture:**
@@ -170,3 +183,4 @@ This project was built to gain hands-on experience with **cloud-native deploymen
 │  - Auto Scaling              │
 │  - HTTPS Endpoint            │
 └──────────────────────────────┘
+
